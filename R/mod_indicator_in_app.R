@@ -58,6 +58,8 @@ mod_indicator_in_app_server <- function(id,CountryInfo,AnalysisInfo,MetaInfo,par
 
     ns <- session$ns
     ref_tab_all <- surveyPrev::indicatorList
+    ref_tab_all[ref_tab_all$ID == "CM_ECMR_C_NNR", ]$`Full_definition` <- "Deaths per 1000 live births in the first month of life in the five years preceding the survey. Estimates are given for ten year periods for all characteristics, but for five year periods only for the national total, by residence, and by sex."
+    
 
     ###############################################################
     ### text for selected indicator
@@ -144,7 +146,7 @@ mod_indicator_in_app_server <- function(id,CountryInfo,AnalysisInfo,MetaInfo,par
 
       selected_ind_table <- ref_tab_all
       selected_ind_table <- selected_ind_table[,c("ID" ,"Description","Full_definition","Topic")]
-
+      
       selected_ind_table$Topic <- as.factor(selected_ind_table$Topic)
 
       tmp_indicator_ID  <- CountryInfo$svy_indicator_var()
