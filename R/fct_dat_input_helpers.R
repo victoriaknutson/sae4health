@@ -201,7 +201,9 @@ get_country_GADM <- function(country,resolution=1) {
 ###  load shapefile depending on source
 ###############################################################
 
+
 get_country_shapefile <- function(country,source=NULL,...) {
+  
   DHS.country.meta <- get("DHS.country.meta", envir = parent.frame())
   if(country=='Sierra Leone'&&(source!='WHO-download')){
     source ='WHO-preload'
@@ -276,17 +278,46 @@ get_country_shapefile <- function(country,source=NULL,...) {
 
   if(source %in% c('GADM-preload','GADM-download')){
 
-    ### check whether raw (for analysis) and smoothed (for display) shapefile exists
-
-    GADM_analysis_shp_path=''
-    GADM_display_shp_path=''
 
     if(source =='GADM-preload'){
 
-      GADM_analysis_shp_path <- system.file("GADM_shp", country_iso3, paste0(country_iso3,"_GADM_analysis.rds"),
-                                            package = "sae4health")
-      GADM_display_shp_path <- system.file("GADM_shp", country_iso3, paste0(country_iso3,"_GADM_display.rds"),
-                                           package = "sae4health")
+      GADM_analysis_shp_path <- paste0(golem::get_golem_options()$server_link, '/DHS_survey_dat/GADM_shp/',
+                                       country_iso3,"/", paste0(country_iso3,"_GADM_analysis.rds"))
+      message(GADM_analysis_shp_path)
+
+      country_shp_analysis <- tryCatch(
+        {
+          message('loading prepared GADM shapefile for analysis.')
+          readRDS(url(GADM_analysis_shp_path))
+        },
+        error = function(e) {
+          message("Failed to retrieve GADM analysis shape file from the server.")
+          message("Error: ", e$message)
+
+          Sys.sleep(2.5)
+          NULL
+        }
+      )
+
+      GADM_display_shp_path <- paste0(golem::get_golem_options()$server_link, '/DHS_survey_dat/GADM_shp/',
+                                      country_iso3,"/", paste0(country_iso3,"_GADM_display.rds"))
+
+      country_shp_smoothed <- tryCatch(
+        {
+          message('loading prepared GADM shapefile for display.')
+          readRDS(url(GADM_display_shp_path))
+        },
+        error = function(e) {
+          message("Failed to retrieve GADM analysis shape file from the server.")
+          message("Error: ", e$message)
+
+          Sys.sleep(2.5)
+          NULL
+        }
+      )
+
+      Sys.sleep(1)
+
     }
 
     ### check whether preloaded raw shapefile exists
@@ -295,29 +326,12 @@ get_country_shapefile <- function(country,source=NULL,...) {
       message('No preloaded GADM shapefile for analysis, downloading from source.')
       country_shp_analysis <- get_country_GADM(country)
 
-    }else{
-
-      message('loading prepared GADM shapefile for analysis.')
-      country_shp_analysis <- readRDS(file=GADM_analysis_shp_path)
-      country_shp_analysis <- lapply(country_shp_analysis, function(x) {
-        sf::st_set_crs(x, 4326)
-      })
-
     }
 
     ### check whether preloaded smoothed shapefile exists
     if(GADM_display_shp_path==''){
       message('No preloaded GADM shapefile for display, downloading from source.')
       country_shp_smoothed <- get_country_GADM(country,resolution=2)
-
-    }else{
-
-      message('loading prepared GADM shapefile for analysis.')
-      country_shp_smoothed <- readRDS(file=GADM_display_shp_path)
-      country_shp_smoothed <- lapply(country_shp_smoothed, function(x) {
-        sf::st_set_crs(x, 4326)
-      })
-
     }
 
 
@@ -331,6 +345,7 @@ get_country_shapefile <- function(country,source=NULL,...) {
 
 
 #tmp.mdg <- get_country_shapefile(country='Zambia',source='GADM-download')
+#tmp.mdg <- get_country_shapefile(country='Zambia',source='GADM-preload')
 
 ###############################################################
 ###  check number of regions at each admin level
