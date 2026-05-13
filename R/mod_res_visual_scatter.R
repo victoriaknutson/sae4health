@@ -173,62 +173,155 @@ mod_res_visual_scatter_server <- function(id,CountryInfo,AnalysisInfo,MetaInfo){
     ###############################################################
 
     output$plot_interactive <- plotly::renderPlotly({
-
-      if (length(input$selected_adm) == 0 || input$selected_adm == "") {
-        return(NULL)
-      }
-
-      ### initialize parameters
+      
+      req(input$selected_adm, input$selected_measure, input$method_x, input$method_y)
+      
       selected_adm <- input$selected_adm
       selected_measure <- input$selected_measure
       selected_method_x <- input$method_x
       selected_method_y <- input$method_y
-
-
-      ### load Madagascar example
-      if(CountryInfo$use_preloaded_Madagascar()){
-        AnalysisInfo$model_res_list(mdg.ex.model.res)}
-
-
-      ### load results
-      model_res_all <- AnalysisInfo$model_res_list()
-
-      strat.gadm.level <- CountryInfo$GADM_strata_level()
-
-      model_res_x <- model_res_all[[selected_method_x]][[selected_adm]]
-      model_res_y <- model_res_all[[selected_method_y]][[selected_adm]]
-
-      ### plot
-      if(is.null(model_res_x)|selected_adm=='National'|is.null(model_res_y)){
-
+      
+      if (selected_adm == "National") {
         return(NULL)
-
-      }else{
-
-        method_match <- c(
-          "Direct" = "Direct estimates",
-          "Unit" = "Unit-level model estimates",
-          "FH" = "Area-level model estimates"
-        )
-
-        label_x <- method_match[selected_method_x]
-        label_y <- method_match[selected_method_y]
-
-        plot.interactive <- scatter.plot( res.obj.x = model_res_x,
-                                     res.obj.y = model_res_y,
-                                     value.to.plot = selected_measure,
-                                     model.gadm.level = admin_to_num(selected_adm),
-                                     strata.gadm.level = CountryInfo$GADM_strata_level(),
-                                     label.x = label_x,
-                                     label.y = label_y,
-                                     plot.title=NULL,
-                                     interactive=T)
-
       }
-      #prev.map.static.output(prev.static.plot)
-      #message(paste0(input$prev_map$lng,'_',input$map_center$lat,'_', input$map_zoom))
+      
+      if (CountryInfo$use_preloaded_Madagascar()) {
+        AnalysisInfo$model_res_list(mdg.ex.model.res)
+      }
+      
+      model_res_all <- AnalysisInfo$model_res_list()
+      req(model_res_all)
+      
+      model_res_x <- tryCatch(
+        model_res_all[[selected_method_x]][[selected_adm]],
+        error = function(e) NULL
+      )
+      
+      model_res_y <- tryCatch(
+        model_res_all[[selected_method_y]][[selected_adm]],
+        error = function(e) NULL
+      )
+      
+      if (is.null(model_res_x) || is.null(model_res_y)) {
+        return(NULL)
+      }
+      
+      method_match <- c(
+        "Direct" = "Direct estimates",
+        "Unit" = "Unit-level model estimates",
+        "FH" = "Area-level model estimates"
+      )
+      
+      label_x <- unname(method_match[selected_method_x])
+      label_y <- unname(method_match[selected_method_y])
+    
+      plot.static <- scatter.plot(
+        res.obj.x = model_res_x,
+        res.obj.y = model_res_y,
+        value.to.plot = selected_measure,
+        model.gadm.level = admin_to_num(selected_adm),
+        strata.gadm.level = CountryInfo$GADM_strata_level(),
+        label.x = label_x,
+        label.y = label_y,
+        plot.title = NULL,
+        interactive = FALSE
+      )
+      
+      plot.interactive <- plotly::ggplotly(plot.static, tooltip = c("x", "y"))
+      
+      # Rename hover labels to match axis labels
+      for (i in seq_along(plot.interactive$x$data)) {
+        if (!is.null(plot.interactive$x$data[[i]]$text)) {
+          plot.interactive$x$data[[i]]$hovertemplate <- paste0(
+            label_x, ": %{x:.3f}<br>",
+            label_y, ": %{y:.3f}",
+            "<extra></extra>"
+          )
+        } else {
+          plot.interactive$x$data[[i]]$hovertemplate <- paste0(
+            label_x, ": %{x:.3f}<br>",
+            label_y, ": %{y:.3f}",
+            "<extra></extra>"
+          )
+        }
+      }
+      
+      # Zoom out slightly by expanding axis ranges
+      x_vals <- unlist(lapply(plot.interactive$x$data, function(z) z$x))
+      y_vals <- unlist(lapply(plot.interactive$x$data, function(z) z$y))
+      
+      x_vals <- x_vals[is.finite(x_vals)]
+      y_vals <- y_vals[is.finite(y_vals)]
+      
+      if (length(x_vals) > 0 && length(y_vals) > 0) {
+        x_rng <- range(x_vals, na.rm = TRUE)
+        y_rng <- range(y_vals, na.rm = TRUE)
+        
+        x_pad <- diff(x_rng) * 0.08
+        y_pad <- diff(y_rng) * 0.08
+        
+        if (x_pad == 0) x_pad <- 0.05
+        if (y_pad == 0) y_pad <- 0.05
+        
+        plot.interactive <- plot.interactive %>%
+          plotly::layout(
+            xaxis = list(
+              title = list(text = label_x, font = list(size = 12)),
+              tickfont = list(size = 11),
+              range = c(x_rng[1] - x_pad, x_rng[2] + x_pad),
+              showline = TRUE,
+              linecolor = "black",
+              linewidth = 1,
+              mirror = FALSE,
+              zeroline = FALSE
+            ),
+            yaxis = list(
+              title = list(text = label_y, font = list(size = 12)),
+              tickfont = list(size = 11),
+              range = c(y_rng[1] - y_pad, y_rng[2] + y_pad),
+              showline = TRUE,
+              linecolor = "black",
+              linewidth = 1,
+              mirror = FALSE,
+              zeroline = FALSE
+            ),
+            title = list(
+              text = "",
+              font = list(size = 12)
+            ),
+            margin = list(l = 70, r = 30, b = 65, t = 25)
+          )
+      } else {
+        plot.interactive <- plot.interactive %>%
+          plotly::layout(
+            xaxis = list(
+              title = list(text = label_x, font = list(size = 12)),
+              tickfont = list(size = 11),
+              showline = TRUE,
+              linecolor = "black",
+              linewidth = 1,
+              mirror = FALSE,
+              zeroline = FALSE
+            ),
+            yaxis = list(
+              title = list(text = label_y, font = list(size = 12)),
+              tickfont = list(size = 11),
+              showline = TRUE,
+              linecolor = "black",
+              linewidth = 1,
+              mirror = FALSE,
+              zeroline = FALSE
+            ),
+            title = list(
+              text = "",
+              font = list(size = 12)
+            ),
+            margin = list(l = 70, r = 30, b = 65, t = 25)
+          )
+      }
+      
       return(plot.interactive)
-
+    
     })
 
 
