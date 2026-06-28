@@ -477,7 +477,7 @@ mod_res_visual_prev_map_by_state_server <- function(id, CountryInfo, AnalysisInf
         return(list(value = natl_mean(), label = "National Mean"))
       }
       
-      list(value = val, label = paste(parent_level, "Mean"))
+      list(value = val, label = paste0(focus, " Mean"))
     })
     
     output$choose_prob <- renderUI({
@@ -494,8 +494,11 @@ mod_res_visual_prev_map_by_state_server <- function(id, CountryInfo, AnalysisInf
       
       wrap_id <- ns("threshold_slider_wrap")
       
-      ## position the dotted reference line against the slider track (.irs-line);
+      ## Position the dotted reference line against the slider track (.irs-line);
       ## min = 0 / max = 1, so the value maps directly to a fraction of the track.
+      ## The line spans from the track down past the 0-1 tick labels, and the
+      ## text label is placed just below them so it never overlaps the moving
+      ## value bubble above the handle or the min/max tick labels.
       marker_js_tmpl <- "
 (function(){
   var WRAP_ID='__WRAP__';
@@ -503,17 +506,26 @@ mod_res_visual_prev_map_by_state_server <- function(id, CountryInfo, AnalysisInf
   var wrap=document.getElementById(WRAP_ID);
   if(!wrap){return;}
   function place(){
+    var irs=wrap.querySelector('.irs');
     var line=wrap.querySelector('.irs-line');
     var marker=wrap.querySelector('.threshold-ref-marker');
-    if(!line||!marker){return false;}
+    var label=wrap.querySelector('.threshold-ref-label');
+    if(!irs||!line||!marker||!label){return false;}
     var lr=line.getBoundingClientRect();
+    var ir=irs.getBoundingClientRect();
     var wr=wrap.getBoundingClientRect();
     if(lr.width===0){return false;}
     var x=(lr.left-wr.left)+frac*lr.width;
+    var top=(lr.top-wr.top)-2;
+    var bottom=(ir.bottom-wr.top);
+    if(bottom<=top){bottom=top+lr.height+18;}
     marker.style.left=x+'px';
-    marker.style.top=((lr.top-wr.top)-8)+'px';
-    marker.style.height=(lr.height+16)+'px';
+    marker.style.top=top+'px';
+    marker.style.height=(bottom-top)+'px';
     marker.style.display='block';
+    label.style.left=x+'px';
+    label.style.top=(bottom+2)+'px';
+    label.style.display='block';
     return true;
   }
   var n=0;
@@ -532,7 +544,8 @@ mod_res_visual_prev_map_by_state_server <- function(id, CountryInfo, AnalysisInf
       tagList(
         div(
           id = wrap_id,
-          style = "position: relative;",
+          ## extra bottom room so the reference label below the ticks has space
+          style = "position: relative; padding-bottom: 22px;",
           sliderInput(
             ns("selected_threshold"),
             "Select Threshold",
@@ -546,15 +559,16 @@ mod_res_visual_prev_map_by_state_server <- function(id, CountryInfo, AnalysisInf
             style = paste0(
               "position: absolute; display: none; width: 0; ",
               "border-left: 2px dotted #555555; pointer-events: none; z-index: 5;"
-            ),
-            div(
-              class = "threshold-ref-label",
-              style = paste0(
-                "position: absolute; top: -16px; transform: translateX(-50%); ",
-                "white-space: nowrap; font-size: 11px; color: #555555;"
-              ),
-              ref$label
             )
+          ),
+          div(
+            class = "threshold-ref-label",
+            style = paste0(
+              "position: absolute; display: none; transform: translateX(-50%); ",
+              "white-space: nowrap; font-size: 11px; color: #555555; ",
+              "pointer-events: none; z-index: 5;"
+            ),
+            ref$label
           ),
           tags$script(HTML(marker_js))
         )
