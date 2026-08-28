@@ -1,4 +1,53 @@
 ###############################################################
+### helpers: force surveyPrev variance fix OFF for U5MR / IMR
+###############################################################
+
+#' @description Detect mortality indicators (U5MR / IMR) for which the
+#'   surveyPrev phantom-cluster variance fix must never be applied.
+#'
+#'   Mortality indicators are built from person-month data and carry an
+#'   'age' column (this covers U5MR / IMR and their 5- and 10-year
+#'   variants, e.g. CM_ECMR_C_U5M / CM_ECMR_C_IMR / CM_ECMR_C_U5F /
+#'   CM_ECMR_C_IMF, as well as NMR). NOTE: check this flag BEFORE any
+#'   code that strips the 'age' column (e.g. the sparsity screening).
+#'
+#' @param analysis.dat analysis dataset for the indicator
+#'
+#' @return logical, TRUE if the variance fix must be forced off
+#'
+#' @noRd
+
+mort_var_fix_off <- function(analysis.dat){
+  "age" %in% colnames(analysis.dat)
+}
+
+#' @description Call a surveyPrev estimation function, explicitly passing
+#'   var.fix = FALSE for mortality indicators (U5MR / IMR).
+#'
+#'   For mortality indicators, var.fix = FALSE is passed explicitly so
+#'   the phantom-cluster variance fix can never be applied to them,
+#'   regardless of the installed surveyPrev version's defaults. For all
+#'   other indicators no var.fix argument is passed at all, so the
+#'   installed package default is preserved unchanged.
+#'
+#' @param fun surveyPrev function (e.g. surveyPrev::directEST or
+#'   surveyPrev::fhModel)
+#'
+#' @param args named list of arguments for fun
+#'
+#' @param var.fix.off logical, output of mort_var_fix_off()
+#'
+#' @return the result of fun
+#'
+#' @noRd
+
+call_with_var_fix_off <- function(fun, args, var.fix.off){
+  if (isTRUE(var.fix.off)) args$var.fix <- FALSE
+  do.call(fun, args)
+}
+
+
+###############################################################
 ### get cluster.info and admin.info for any admin level
 ###############################################################
 
@@ -138,6 +187,9 @@ screen_svy_model <- function(cluster.admin.info,
                              method=c('Direct','FH','Unit')[1],
                              svy.strata=NULL){
   
+  ### U5MR / IMR: flag must be computed BEFORE the age column is stripped
+  mort.fix.off <- mort_var_fix_off(analysis.dat)
+
   if("age" %in% colnames(analysis.dat)){
     analysis.dat$age <- NULL
   }
@@ -190,12 +242,15 @@ screen_svy_model <- function(cluster.admin.info,
 
 
     ### calculate direct estimate
-    res.direct <- surveyPrev::directEST(data = analysis.dat,
-                                        cluster.info = cluster.info,
-                                        admin = pseudo_level,
-                                        admin.info = admin.info,
-                                        aggregation = F,
-                                        alt.strata=svy.strata)
+    ### (var.fix = FALSE forced for U5MR / IMR via mort.fix.off)
+    res.direct <- call_with_var_fix_off(surveyPrev::directEST,
+                                        list(data = analysis.dat,
+                                             cluster.info = cluster.info,
+                                             admin = pseudo_level,
+                                             admin.info = admin.info,
+                                             aggregation = F,
+                                             alt.strata=svy.strata),
+                                        var.fix.off = mort.fix.off)
 
 
     ### examine direct estimates
@@ -357,6 +412,9 @@ fit_svy_model <- function(cluster.geo,
   process.info=T
   nsamp=1000
 
+  ### U5MR / IMR: force surveyPrev variance fix OFF for mortality indicators
+  mort.fix.off <- mort_var_fix_off(analysis.dat)
+
 
 
   ### whether to use processed cluster.info and admin.info object
@@ -382,19 +440,24 @@ fit_svy_model <- function(cluster.geo,
 
       res_adm <- tryCatch({
         # First attempt with alt.strata='v022'
-        surveyPrev::directEST(data = analysis.dat,
-                              cluster.info = cluster.info,
-                              admin = 0,
-                              strata = "all",
-                              alt.strata = 'v022')
+        # (var.fix = FALSE forced for U5MR / IMR via mort.fix.off)
+        call_with_var_fix_off(surveyPrev::directEST,
+                              list(data = analysis.dat,
+                                   cluster.info = cluster.info,
+                                   admin = 0,
+                                   strata = "all",
+                                   alt.strata = 'v022'),
+                              var.fix.off = mort.fix.off)
       }, error = function(e) {
         # If the first attempt fails, try with alt.strata=svy.strata
         tryCatch({
-          surveyPrev::directEST(data = analysis.dat,
-                                cluster.info = cluster.info,
-                                admin = 0,
-                                strata = "all",
-                                alt.strata = NULL)
+          call_with_var_fix_off(surveyPrev::directEST,
+                                list(data = analysis.dat,
+                                     cluster.info = cluster.info,
+                                     admin = 0,
+                                     strata = "all",
+                                     alt.strata = NULL),
+                                var.fix.off = mort.fix.off)
         }, error = function(e) {
           # If both attempts fail, set res_adm to NULL
           NULL
@@ -512,13 +575,16 @@ fit_svy_model <- function(cluster.geo,
 
     aggregation = F
 
-    res_adm <- surveyPrev::directEST(data = analysis.dat,
-                                     cluster.info = cluster.info,
-                                     admin = pseudo_level,
-                                     weight = "population",
-                                     admin.info = admin.info,
-                                     aggregation = aggregation,
-                                     alt.strata=svy.strata)
+    ### (var.fix = FALSE forced for U5MR / IMR via mort.fix.off)
+    res_adm <- call_with_var_fix_off(surveyPrev::directEST,
+                                     list(data = analysis.dat,
+                                          cluster.info = cluster.info,
+                                          admin = pseudo_level,
+                                          weight = "population",
+                                          admin.info = admin.info,
+                                          aggregation = aggregation,
+                                          alt.strata=svy.strata),
+                                     var.fix.off = mort.fix.off)
 
     ### draw samples
     if(pseudo_level==1){
@@ -574,13 +640,16 @@ fit_svy_model <- function(cluster.geo,
 
   if(method=='FH'){
 
-    res_direct <- surveyPrev::directEST(data = analysis.dat,
-                                        cluster.info = cluster.info,
-                                        admin = pseudo_level,
-                                        weight = "population",
-                                        admin.info = admin.info,
-                                        aggregation = F,
-                                        alt.strata=svy.strata)
+    ### (var.fix = FALSE forced for U5MR / IMR via mort.fix.off)
+    res_direct <- call_with_var_fix_off(surveyPrev::directEST,
+                                        list(data = analysis.dat,
+                                             cluster.info = cluster.info,
+                                             admin = pseudo_level,
+                                             weight = "population",
+                                             admin.info = admin.info,
+                                             aggregation = F,
+                                             alt.strata=svy.strata),
+                                        var.fix.off = mort.fix.off)
 
     if(pseudo_level==1){
       bad_admins <- subset(res_direct$res.admin1, direct.var < 1e-30|is.na(direct.var)|direct.var==Inf)$admin1.name
@@ -603,14 +672,17 @@ fit_svy_model <- function(cluster.geo,
       updated.analysis.dat <-subset(analysis.dat, !cluster %in% bad_clusters)
 
 
-      res_adm <- surveyPrev::fhModel(data= updated.analysis.dat,
-                                     cluster.info = cluster.info,
-                                     admin.info = admin.info,
-                                     admin = pseudo_level,
-                                     model = "bym2",
-                                     aggregation =aggregation,
-                                     alt.strata=svy.strata,
-                                     X=area_cov_frame)
+      ### (var.fix = FALSE forced for U5MR / IMR via mort.fix.off)
+      res_adm <- call_with_var_fix_off(surveyPrev::fhModel,
+                                       list(data= updated.analysis.dat,
+                                            cluster.info = cluster.info,
+                                            admin.info = admin.info,
+                                            admin = pseudo_level,
+                                            model = "bym2",
+                                            aggregation =aggregation,
+                                            alt.strata=svy.strata,
+                                            X=area_cov_frame),
+                                       var.fix.off = mort.fix.off)
 
     }
 
@@ -650,14 +722,17 @@ fit_svy_model <- function(cluster.geo,
       #options(survey.lonely.psu="remove")
       #options(survey.adjust.domain.lonely=TRUE)
 
-      res_adm <- surveyPrev::fhModel(data = updated.analysis.dat,
-                                     cluster.info = cluster.info,
-                                     admin.info = admin.info,
-                                     admin = pseudo_level,
-                                     model = "bym2",
-                                     aggregation =aggregation,
-                                     alt.strata=svy.strata,
-                                     X=area_cov_frame)
+      ### (var.fix = FALSE forced for U5MR / IMR via mort.fix.off)
+      res_adm <- call_with_var_fix_off(surveyPrev::fhModel,
+                                       list(data = updated.analysis.dat,
+                                            cluster.info = cluster.info,
+                                            admin.info = admin.info,
+                                            admin = pseudo_level,
+                                            model = "bym2",
+                                            aggregation =aggregation,
+                                            alt.strata=svy.strata,
+                                            X=area_cov_frame),
+                                       var.fix.off = mort.fix.off)
     }
 
 
