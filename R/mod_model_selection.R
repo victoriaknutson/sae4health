@@ -539,6 +539,17 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
         paste0("  poly.adm2        = gadm.list[['Admin-", max(adm_num, 1), "']])")
       )
 
+      ## U5MR / IMR (and other mortality indicators): the app forces the
+      ## surveyPrev variance fix OFF for these indicators, so the
+      ## reproducible recipe must carry var.fix = FALSE as well.
+      mort_ids <- c("CM_ECMR_C_U5M", "CM_ECMR_C_IMR",
+                    "CM_ECMR_C_U5F", "CM_ECMR_C_IMF",
+                    "CM_ECMR_C_NNR", "CM_ECMR_C_NNF",
+                    "u5mr", "imr", "nmr")
+      varfix_arg <- if (!is.null(indicator_var) && indicator_var %in% mort_ids) {
+        "  var.fix           = FALSE,  # variance fix disabled for U5MR / IMR"
+      } else NULL
+
       body <- switch(
         method,
         "Direct" = c(
@@ -546,6 +557,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
           "  data              = analysis.dat,",
           "  cluster.info      = cluster.info,",
           paste0("  admin             = ", adm_num, strat_arg, ",  # 0 = National"),
+          varfix_arg,
           "  aggregation       = TRUE)",
           "summary(res$res.admin)"
         ),
@@ -559,6 +571,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
           "  cluster.info      = cluster.info,",
           "  admin.info        = admin.info,",
           paste0("  admin             = ", adm_num, strat_arg, ","),
+          varfix_arg,
           "  aggregation       = TRUE,",
           "  CI                = 0.95)",
           "summary(res$res.admin)"

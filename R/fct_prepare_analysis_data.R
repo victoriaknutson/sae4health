@@ -75,19 +75,27 @@ prepare_analysis_data <- function(CountryInfo, AnalysisInfo, session, ref_tab_al
                                             by.adm1 = paste0("NAME_",1),
                                             by.adm2 = paste0("NAME_",1))
     
+    ### U5MR / IMR: force surveyPrev variance fix OFF for mortality indicators
+    ### (helpers defined in fct_analysis_helpers.R)
+    mort.fix.off <- mort_var_fix_off(analysis_dat)
+
     res_adm <- tryCatch({
-      surveyPrev::directEST(data = analysis_dat,
-                            cluster.info = cluster.info,
-                            admin = 0,
-                            strata = "all",
-                            alt.strata = 'v022')
+      call_with_var_fix_off(surveyPrev::directEST,
+                            list(data = analysis_dat,
+                                 cluster.info = cluster.info,
+                                 admin = 0,
+                                 strata = "all",
+                                 alt.strata = 'v022'),
+                            var.fix.off = mort.fix.off)
     }, error = function(e) {
       tryCatch({
-        surveyPrev::directEST(data = analysis_dat,
-                              cluster.info = cluster.info,
-                              admin = 0,
-                              strata = "all",
-                              alt.strata = NULL)
+        call_with_var_fix_off(surveyPrev::directEST,
+                              list(data = analysis_dat,
+                                   cluster.info = cluster.info,
+                                   admin = 0,
+                                   strata = "all",
+                                   alt.strata = NULL),
+                              var.fix.off = mort.fix.off)
       }, error = function(e) {
         NULL
       })
