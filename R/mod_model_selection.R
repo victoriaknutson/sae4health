@@ -1394,7 +1394,20 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
       if(!is.null(input$upload_cov_file)&cov_file_status()=='newly_uploaded'){
         ### read data
         #tmp_cov_data <- read.csv(input$upload_cov_file$datapath, stringsAsFactors = FALSE)
-        tmp_cov_data <- readr::read_csv(input$upload_cov_file$datapath,name_repair = "minimal", show_col_types = FALSE)
+
+        ### guess the file encoding before reading: templates edited in Excel
+        ### are frequently saved back as windows-1252 / latin1 / mac-roman
+        ### rather than UTF-8, which corrupts accented region names (e.g.
+        ### 'Bélier', 'Gôh-Djiboua') and silently breaks name matching
+        guessed_enc <- tryCatch({
+          enc <- readr::guess_encoding(input$upload_cov_file$datapath)
+          if(nrow(enc) > 0){enc$encoding[1]}else{'UTF-8'}
+        }, error = function(e){'UTF-8'})
+
+        tmp_cov_data <- readr::read_csv(input$upload_cov_file$datapath,
+                                        name_repair = "minimal",
+                                        show_col_types = FALSE,
+                                        locale = readr::locale(encoding = guessed_enc))
         tmp_cov_data <- as.data.frame(tmp_cov_data)
 
         ### check consistency of dimension
@@ -1431,6 +1444,38 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
             show_cov_upload_success <<- F
             showNotification(paste0("Error caught: ", conditionMessage(e)), type = "message")
           })
+
+
+          ### check region names against the shapefile and report the exact
+          ### mismatches (previously a mismatch surfaced only as NA covariates
+          ### or a failed join at model fitting time, with no feedback here)
+          key_col <- intersect(c('admin2.name.full','admin1.name'), all_tmp_col)
+          if(show_cov_upload_success==T && length(key_col) > 0){
+
+            key_col <- key_col[1]
+            gadm.poly <- gadm_list[[input$cov_adm_selected]]
+            model.gadm.level <- admin_to_num(input$cov_adm_selected)
+
+            if(key_col == 'admin2.name.full'){
+              expected_names <- paste0(gadm.poly[[paste0('NAME_', model.gadm.level - 1)]],
+                                       '_',
+                                       gadm.poly[[paste0('NAME_', model.gadm.level)]])
+            }else{
+              expected_names <- gadm.poly[[paste0('NAME_', model.gadm.level)]]
+            }
+
+            unmatched <- setdiff(expected_names, tmp_cov_data[[key_col]])
+
+            if(length(unmatched) > 0){
+              show_cov_upload_success = F
+              showNotification(paste0("Some region names in the uploaded file do not match this admin level. ",
+                                      "Please download the template again and fill in values without editing the name column. ",
+                                      "Regions with no match: ",
+                                      paste(utils::head(unmatched, 8), collapse = '; '),
+                                      ifelse(length(unmatched) > 8, ' ...', '')),
+                               type = "message", duration = 15)
+            }
+          }
 
 
           if(show_cov_upload_success==T){
@@ -1531,46 +1576,46 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
 
         selected_adm <- input$cov_adm_selected
         strat.gadm.level <- CountryInfo$GADM_strata_level()
+        model.gadm.level <- admin_to_num(selected_adm)
 
-        if(admin_to_num(selected_adm) > strat.gadm.level){
-          pseudo_level=2
-          adm_colname=c('admin2.name.full')
+        ### BUG FIX (covariate template download failed for levels finer than
+        ### the stratification level, e.g. Admin-2 with Admin-1 stratified
+        ### surveys):
+        ### The template was previously pulled from
+        ### AnalysisInfo$cluster_admin_info_list()[[...]]$admin.info$data.
+        ### cluster_admin_info() currently builds admin.info with admin = 1 for
+        ### every subnational level, so that data frame has no
+        ### 'admin2.name.full' column; selecting it errored inside content()
+        ### and the browser received no csv. It also ran a full GPS-cluster
+        ### assignment just to list region names.
+        ###
+        ### Build the template directly from the loaded shapefile instead, with
+        ### the admin name column exactly matching the join keys used at model
+        ### fitting time (fit_svy_model() -> surveyPrev::fhModel/clusterModel):
+        ###   - levels not finer than the stratification level are keyed by
+        ###     'admin1.name' = NAME_<level>;
+        ###   - finer levels are keyed by
+        ###     'admin2.name.full' = paste0(NAME_<level-1>, '_', NAME_<level>)
+        ###     (upper level = model level - 1, mirroring fit_svy_model()).
+        gadm.poly <- CountryInfo$GADM_list()[[selected_adm]]
+
+        if(model.gadm.level > strat.gadm.level){
+
+          upper.level <- model.gadm.level - 1
+          tmp_cov_adm_template <- data.frame(
+            admin2.name.full = paste0(gadm.poly[[paste0('NAME_', upper.level)]],
+                                      '_',
+                                      gadm.poly[[paste0('NAME_', model.gadm.level)]]))
         }else{
-          pseudo_level=1
-          adm_colname=c('admin1.name')
+          tmp_cov_adm_template <- data.frame(
+            admin1.name = gadm.poly[[paste0('NAME_', model.gadm.level)]])
         }
 
-
-        ### prepare admin level GPS info if not stored
-        geo_info_list <- AnalysisInfo$cluster_admin_info_list()
-        tmp.geo.info <- geo_info_list[[selected_adm]]
-
-        if(is.null(tmp.geo.info)){
-
-          tryCatch({
-
-            message(selected_adm)
-
-            tmp.cluster.adm.info <- cluster_admin_info(cluster.geo= CountryInfo$svy_GPS_dat(),  #mdg.ex.GPS
-                                                       gadm.list = CountryInfo$GADM_list(),  #mdg.ex.GADM.list
-                                                       model.gadm.level = admin_to_num(selected_adm),
-                                                       strat.gadm.level = CountryInfo$GADM_strata_level())
-
-
-            AnalysisInfo$set_info_list(selected_adm,tmp.cluster.adm.info)
-
-            geo_info_list <- AnalysisInfo$cluster_admin_info_list()
-            tmp.geo.info <- geo_info_list[[selected_adm]]
-
-          },error = function(e) {
-            message(e$message)
-          })
-        }
-
-
-        tmp_cov_adm_template <- as.data.frame(tmp.geo.info$admin.info$data[,adm_colname])
-        colnames(tmp_cov_adm_template) <- adm_colname
-        readr::write_csv(tmp_cov_adm_template, file)
+        ### write with a UTF-8 BOM so Excel renders accented region names
+        ### correctly and round-trips them as UTF-8 (a plain UTF-8 csv opened
+        ### and re-saved in Excel often comes back in a legacy encoding, which
+        ### silently corrupts names like 'Gbêkê' and breaks matching on upload)
+        readr::write_excel_csv(tmp_cov_adm_template, file)
       }
     )
 
@@ -1850,10 +1895,12 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
                                                           #strat.gadm.level = strat.gadm.level,
                                                           strat.gadm.level = CountryInfo$GADM_strata_level(),
                                                           method = tmp.method,
-                                                          aggregation =T
+                                                          aggregation =T,
                                                           #svy.strata = svy.strata,
                                                           #nested=AnalysisInfo$get_ad_options('nested'),
-                                                          #area_cov_frame = cov_mat_list[[tmp.adm]]
+                                                          ### re-enabled: without this the covariates uploaded in the
+                                                          ### UI were never passed to the model and were silently ignored
+                                                          area_cov_frame = cov_mat_list[[tmp.adm]]
                                             )))
                 #}, timeout = 300) ### 5 minutes for timeout
               },error = function(e) {
@@ -2078,10 +2125,12 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
                                                           #strat.gadm.level = strat.gadm.level,
                                                           strat.gadm.level = CountryInfo$GADM_strata_level(),
                                                           method = tmp.method,
-                                                          aggregation =T
+                                                          aggregation =T,
                                                           #svy.strata = svy.strata,
                                                           #nested=AnalysisInfo$get_ad_options('nested'),
-                                                          #area_cov_frame = cov_mat_list[[tmp.adm]]
+                                                          ### re-enabled: without this the covariates uploaded in the
+                                                          ### UI were never passed to the model and were silently ignored
+                                                          area_cov_frame = cov_mat_list[[tmp.adm]]
                 )))
                 #}, timeout = 300) ### 5 minutes for timeout
               },error = function(e) {
