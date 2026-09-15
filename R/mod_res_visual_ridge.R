@@ -158,7 +158,7 @@ mod_res_visual_ridge_server <- function(id,CountryInfo,AnalysisInfo,MetaInfo){
       adm.choice <- col_names()
       adm.choice <- adm.choice[adm.choice!='National']
       updateSelectInput(inputId = "selected_adm",
-                        choices = adm.choice)
+                        choices = labeled_admin_choices(adm.choice, CountryInfo$country()))
     })
 
 

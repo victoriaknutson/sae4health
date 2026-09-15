@@ -296,3 +296,74 @@ calculate_columns <- function(n, height_width_ratio) {
 }
 
 
+
+###############################################################
+###  display labels for admin levels
+###############################################################
+
+#' Display Label for a Single Administrative Level
+#'
+#' Maps an internal level identifier ("National", "Admin-1", ...) to its
+#' user-facing label. Internal identifiers are never altered elsewhere in
+#' the app; this is applied only at display time (input choices, table
+#' headers, progress messages). Currently relabels "Admin-3" as
+#' "Health Zones" for the Democratic Republic of the Congo, where the
+#' preloaded shapefile carries GRID3 health zones as the Admin-3 layer.
+#' Add further country/level mappings here as needed.
+#'
+#' @param level Single internal level name.
+#' @param country Country name as returned by CountryInfo$country().
+#'
+#' @return Single display label (character).
+#'
+#' @noRd
+admin_level_label <- function(level, country = NULL) {
+  if (identical(level, "Admin-3") &&
+      identical(country, "Democratic Republic of the Congo")) {
+    return("Health Zones")
+  }
+  level
+}
+
+#' Display Labels for a Vector of Administrative Levels
+#'
+#' Vectorized version of admin_level_label(). Returns an unnamed character
+#' vector of display labels in the same order as the input; useful for
+#' relabeling table column headers.
+#'
+#' @param levels Character vector of internal level names.
+#' @param country Country name as returned by CountryInfo$country().
+#'
+#' @return Character vector of display labels.
+#'
+#' @noRd
+admin_display_labels <- function(levels, country = NULL) {
+  if (is.null(levels) || length(levels) == 0) {
+    return(character(0))
+  }
+  vapply(levels, admin_level_label, character(1),
+         country = country, USE.NAMES = FALSE)
+}
+
+#' Labeled Choices for Shiny Inputs
+#'
+#' Builds a named character vector suitable for Shiny input `choices`,
+#' where names are user-facing labels and values are the unchanged
+#' internal level identifiers, so all downstream logic that dispatches
+#' on "Admin-k" strings (admin_to_num, gadm.list lookups, model result
+#' keys) continues to work unchanged.
+#'
+#' @param levels Character vector of internal level names.
+#' @param country Country name as returned by CountryInfo$country().
+#'
+#' @return Named character vector: names are display labels, values are
+#'   the internal level names. Safe to pass to selectInput /
+#'   updateSelectInput / updateCheckboxGroupInput.
+#'
+#' @noRd
+labeled_admin_choices <- function(levels, country = NULL) {
+  if (is.null(levels) || length(levels) == 0) {
+    return(character(0))
+  }
+  stats::setNames(levels, admin_display_labels(levels, country))
+}

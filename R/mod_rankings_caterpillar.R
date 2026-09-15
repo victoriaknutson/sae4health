@@ -298,7 +298,7 @@ mod_rankings_caterpillar_server <- function(id, CountryInfo, AnalysisInfo, MetaI
       updateSelectInput(
         session = session,
         inputId = "selected_adm",
-        choices = adm.choice,
+        choices = labeled_admin_choices(adm.choice, CountryInfo$country()),
         selected = if(length(adm.choice) > 0) adm.choice[1] else character(0)
       )
     }, ignoreInit = FALSE)

@@ -954,9 +954,11 @@ mod_country_specify_server <- function(id,CountryInfo,AnalysisInfo,MetaInfo,pare
 
     observe({
       req(CountryInfo$GADM_list())
-      updateSelectInput(session, "AdminLevel", choices = names(CountryInfo$GADM_list()))
-      updateCheckboxGroupInput(session, "admin_levels_analysis", choices = names(CountryInfo$GADM_list()),
-                               selected = names(CountryInfo$GADM_list()))
+      lvls <- names(CountryInfo$GADM_list())
+      lvl.choices <- labeled_admin_choices(lvls, CountryInfo$country())
+      updateSelectInput(session, "AdminLevel", choices = lvl.choices)
+      updateCheckboxGroupInput(session, "admin_levels_analysis", choices = lvl.choices,
+                               selected = lvls)
       #updateSelectInput(session, "admin_levels_analysis", selected = 'National')
 
     })
@@ -1055,6 +1057,9 @@ mod_country_specify_server <- function(id,CountryInfo,AnalysisInfo,MetaInfo,pare
       }
 
       GADM_num_df <- check_gadm_levels(gadm_list)
+      colnames(GADM_num_df) <- admin_display_labels(colnames(GADM_num_df),
+                                                    CountryInfo$country())
+      GADM_num_df
     }, align = "l",rownames = TRUE)
 
 
@@ -1067,7 +1072,8 @@ mod_country_specify_server <- function(id,CountryInfo,AnalysisInfo,MetaInfo,pare
       req(CountryInfo$GADM_display_selected_level())
 
       country <- CountryInfo$country()
-      admin_level <- CountryInfo$GADM_display_selected_level()
+      admin_level <- admin_level_label(CountryInfo$GADM_display_selected_level(),
+                                       country)
 
       HTML(paste0(
         "<hr style='border-top-color: #E0E0E0;'>",
