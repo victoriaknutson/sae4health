@@ -430,7 +430,7 @@ mod_res_visual_multiple_maps_server <- function(id,CountryInfo,AnalysisInfo,Meta
           "Results for ",
           "<span style='background-color: #D0E4F7;'><b>", method_des, "</b></span> ",
           "model at ",
-          "<span style='background-color: #D0E4F7;'><b>", selected_adm, "</b></span>",
+          "<span style='background-color: #D0E4F7;'><b>", admin_level_label(selected_adm, CountryInfo$country()), "</b></span>",
           " level are ",
           "<strong style='color: red;'>NOT</strong>",
            " available. Please make sure the model has been successfully fitted.",
@@ -444,7 +444,7 @@ mod_res_visual_multiple_maps_server <- function(id,CountryInfo,AnalysisInfo,Meta
           "Presenting map for ",
           "<span style='background-color: #D0E4F7;'><b>", method_des, "</b></span> ",
           "model at ",
-          "<span style='background-color: #D0E4F7;'><b>", selected_adm, "</b></span> level.",
+          "<span style='background-color: #D0E4F7;'><b>", admin_level_label(selected_adm, CountryInfo$country()), "</b></span> level.",
           "</p>"
         ))
 

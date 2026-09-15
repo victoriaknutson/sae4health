@@ -151,7 +151,7 @@ mod_res_visual_interval_compare_server <- function(id, CountryInfo, AnalysisInfo
         return(HTML(paste0(
           "<p style='font-size: large;'>",
           "No fitted model results are available at ",
-          "<span style='background-color: #D0E4F7;'><b>", input$selected_adm, "</b></span>",
+          "<span style='background-color: #D0E4F7;'><b>", admin_level_label(input$selected_adm, CountryInfo$country()), "</b></span>",
           " level.",
           "</p>"
         )))
@@ -160,7 +160,7 @@ mod_res_visual_interval_compare_server <- function(id, CountryInfo, AnalysisInfo
       HTML(paste0(
         "<p style='font-size: large;'>",
         "Presenting interval plot comparison at ",
-        "<span style='background-color: #D0E4F7;'><b>", input$selected_adm, "</b></span>",
+        "<span style='background-color: #D0E4F7;'><b>", admin_level_label(input$selected_adm, CountryInfo$country()), "</b></span>",
         " level for: ",
         "<span style='background-color: #D0E4F7;'><b>", paste(fitted_labels, collapse = ", "), "</b></span>",
         ".</p>"
