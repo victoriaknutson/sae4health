@@ -138,7 +138,7 @@ mod_result_tabulate_server <- function(id,CountryInfo,AnalysisInfo,MetaInfo){
           "Results for ",
           "<span style='background-color: #D0E4F7;'><b>", method_des, "</b></span> ",
           "model at ",
-          "<span style='background-color: #D0E4F7;'><b>", selected_adm, "</b></span>",
+          "<span style='background-color: #D0E4F7;'><b>", admin_level_label(selected_adm, CountryInfo$country()), "</b></span>",
           " level are not available. Please make sure the model has been successfully fitted.",
           "</p>"
         ))
@@ -150,7 +150,7 @@ mod_result_tabulate_server <- function(id,CountryInfo,AnalysisInfo,MetaInfo){
           "Tabulating estimates for ",
           "<span style='background-color: #D0E4F7;'><b>", method_des, "</b></span> ",
           "model at ",
-          "<span style='background-color: #D0E4F7;'><b>", selected_adm, "</b></span> level.",
+          "<span style='background-color: #D0E4F7;'><b>", admin_level_label(selected_adm, CountryInfo$country()), "</b></span> level.",
           "</p>"
         ))
 

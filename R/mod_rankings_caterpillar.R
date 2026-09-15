@@ -358,7 +358,7 @@ mod_rankings_caterpillar_server <- function(id, CountryInfo, AnalysisInfo, MetaI
       if(is.null(model_res_selected)){
         HTML(paste0(
           "<p style='font-size: large;'>Results for <span style='background-color: #D0E4F7;'><b>", method_des,
-          "</b></span> model at <span style='background-color: #D0E4F7;'><b>", selected_adm,
+          "</b></span> model at <span style='background-color: #D0E4F7;'><b>", admin_level_label(selected_adm, CountryInfo$country()),
           "</b></span> level are <strong style='color: red;'>NOT</strong> available. Please make sure the model has been successfully fitted.</p>"
         ))
       } else {
@@ -368,7 +368,7 @@ mod_rankings_caterpillar_server <- function(id, CountryInfo, AnalysisInfo, MetaI
         }
         HTML(paste0(
           "<p style='font-size: large;'>Presenting posterior rank caterpillar plot and rank maps for <span style='background-color: #D0E4F7;'><b>",
-          method_des, "</b></span> model at <span style='background-color: #D0E4F7;'><b>", selected_adm,
+          method_des, "</b></span> model at <span style='background-color: #D0E4F7;'><b>", admin_level_label(selected_adm, CountryInfo$country()),
           "</b></span> level.", extra.txt, "</p>"
         ))
       }

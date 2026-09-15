@@ -611,7 +611,7 @@ mod_res_visual_prev_map_by_state_server <- function(id, CountryInfo, AnalysisInf
           "Results for ",
           "<span style='background-color: #D0E4F7;'><b>", method_des, "</b></span> ",
           "at ",
-          "<span style='background-color: #D0E4F7;'><b>", selected_adm, "</b></span> ",
+          "<span style='background-color: #D0E4F7;'><b>", admin_level_label(selected_adm, CountryInfo$country()), "</b></span> ",
           "are <strong style='color: red;'>NOT</strong> available. ",
           "Please make sure the model has been successfully fitted.",
           "</p>"
@@ -624,7 +624,7 @@ mod_res_visual_prev_map_by_state_server <- function(id, CountryInfo, AnalysisInf
           "for the ",
           "<span style='background-color: #D0E4F7;'><b>", method_des, "</b></span> ",
           "model at ",
-          "<span style='background-color: #D0E4F7;'><b>", selected_adm, "</b></span> ",
+          "<span style='background-color: #D0E4F7;'><b>", admin_level_label(selected_adm, CountryInfo$country()), "</b></span> ",
           "for ",
           "<span style='background-color: #D0E4F7;'><b>", focus_text, "</b></span>.",
           "</p>"
