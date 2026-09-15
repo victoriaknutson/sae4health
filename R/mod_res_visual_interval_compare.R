@@ -103,7 +103,7 @@ mod_res_visual_interval_compare_server <- function(id, CountryInfo, AnalysisInfo
       updateSelectInput(
         session = session,
         inputId = "selected_adm",
-        choices = adm.choice,
+        choices = labeled_admin_choices(adm.choice, CountryInfo$country()),
         selected = if (length(adm.choice) > 0) adm.choice[1] else character(0)
       )
     }, ignoreInit = FALSE)

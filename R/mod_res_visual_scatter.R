@@ -128,7 +128,7 @@ mod_res_visual_scatter_server <- function(id,CountryInfo,AnalysisInfo,MetaInfo){
       adm.choice <- CountryInfo$GADM_analysis_levels()
       adm.choice <- adm.choice[adm.choice!='National']
       updateSelectInput(inputId = "selected_adm",
-                        choices = adm.choice)
+                        choices = labeled_admin_choices(adm.choice, CountryInfo$country()))
     })
 
     ###############################################################

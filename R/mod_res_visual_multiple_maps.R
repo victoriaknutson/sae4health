@@ -327,7 +327,7 @@ mod_res_visual_multiple_maps_server <- function(id,CountryInfo,AnalysisInfo,Meta
       adm.choice <- GADM.levels()
       adm.choice <- adm.choice[adm.choice!='National']
       updateSelectInput(inputId = "selected_adm",
-                        choices = adm.choice)
+                        choices = labeled_admin_choices(adm.choice, CountryInfo$country()))
     })
 
     ### update choices of statistics

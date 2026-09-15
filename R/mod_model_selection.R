@@ -751,6 +751,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
 
 
       rownames(df) <- method_names
+      colnames(df) <- admin_display_labels(col_names(), CountryInfo$country())
       # Return the DataTable
       DT::datatable(df, escape = FALSE, selection = 'none',
                     options = list(dom = 't', paging = FALSE, ordering = FALSE,
@@ -922,7 +923,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
         tmp.adm.num <- admin_to_num(tmp.adm)
 
         session$sendCustomMessage('controlSpinner', list(action = "show",
-                                                         message = paste0("Running data sparsity check for ",tmp.adm," level model(s). Please wait...")))
+                                                         message = paste0("Running data sparsity check for ",admin_level_label(tmp.adm, CountryInfo$country())," level model(s). Please wait...")))
 
 
         for (i in seq_len(nrows)) {
@@ -1020,18 +1021,18 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
             .screen_msg  <- tmp.check.model$screen.message
             if (is.null(.screen_msg)) .screen_msg <- ""
             if (identical(.screen_flag, "Pass")) {
-              append_log(paste0("[", tmp.adm, " / ", tmp.method,
+              append_log(paste0("[", admin_level_label(tmp.adm, CountryInfo$country()), " / ", tmp.method,
                                 "] Passed sparsity check."), class = "output")
             } else if (identical(.screen_flag, "Warning")) {
-              append_log(paste0("[", tmp.adm, " / ", tmp.method,
+              append_log(paste0("[", admin_level_label(tmp.adm, CountryInfo$country()), " / ", tmp.method,
                                 "] Warning: ", .screen_msg),
                          class = "warning")
             } else if (identical(.screen_flag, "Error")) {
-              append_log(paste0("[", tmp.adm, " / ", tmp.method,
+              append_log(paste0("[", admin_level_label(tmp.adm, CountryInfo$country()), " / ", tmp.method,
                                 "] Error: ", .screen_msg),
                          class = "error")
             } else {
-              append_log(paste0("[", tmp.adm, " / ", tmp.method,
+              append_log(paste0("[", admin_level_label(tmp.adm, CountryInfo$country()), " / ", tmp.method,
                                 "] Flag: ", as.character(.screen_flag),
                                 if (nzchar(.screen_msg)) paste0(" -- ", .screen_msg) else ""),
                          class = "output")
@@ -1269,7 +1270,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
               selectInput(
                 inputId = ns("cov_adm_selected"),
                 label = "Select Admin Level:",
-                choices = adm.choice,
+                choices = labeled_admin_choices(adm.choice, CountryInfo$country()),
                 selected = character(0),
                 width = "100%"
               )},
@@ -1485,7 +1486,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
             current_cov_list[[input$cov_adm_selected]] <- tmp_cov_data
             AnalysisInfo$set_ad_options('adm_cov_list',current_cov_list)
 
-            showNotification(paste0("Covariates uploaded for ",input$cov_adm_selected), type = "message")
+            showNotification(paste0("Covariates uploaded for ",admin_level_label(input$cov_adm_selected, CountryInfo$country())), type = "message")
 
             ### reset fitted models
             AnalysisInfo$set_track_res('Unit',input$cov_adm_selected,NULL)
@@ -1545,7 +1546,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
       })
 
       # Assign names and convert to 1-row data frame
-      df <- data.frame(Admin_Level=adm.choice,
+      df <- data.frame(Admin_Level=admin_display_labels(adm.choice, CountryInfo$country()),
                        Covariates=unlist(covariate_row))
 
       row.names(df) <- NULL
@@ -1663,7 +1664,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
                  selectInput(
                    inputId = ns("download_model_admin"),
                    label = "Admin Area:",
-                   choices = col_names(),
+                   choices = labeled_admin_choices(col_names(), CountryInfo$country()),
                    selected = col_names()[1],
                    width = "100%"
                  )
@@ -1694,14 +1695,14 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
       if (is.null(tmp.model)) {
         return(tags$div(
           style = "font-size: large; color: #b36b00; margin-top: 10px; margin-bottom: 30px;",
-          paste0("No fitted model object is currently available for ", tmp.method.display, " at ", tmp.adm, ".")
+          paste0("No fitted model object is currently available for ", tmp.method.display, " at ", admin_level_label(tmp.adm, CountryInfo$country()), ".")
         ))
       }
 
       tagList(
         tags$div(
           style = "font-size: large; color: green; margin-top: 10px; margin-bottom: 12px;",
-          paste0("A fitted model object is available for ", tmp.method.display, " at ", tmp.adm, ".")
+          paste0("A fitted model object is available for ", tmp.method.display, " at ", admin_level_label(tmp.adm, CountryInfo$country()), ".")
         ),
         downloadButton(ns("download_model_object"), "Download Model Object", icon = icon("download"), class = "btn-primary"),
         tags$div(style = "margin-bottom: 30px;")
@@ -1798,7 +1799,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
             message('Modelling at ',tmp.adm,' using ',tmp.method,' model.')
 
             session$sendCustomMessage('controlSpinner', list(action = "show",
-                                                             message = paste0('Modelling at ',tmp.adm,' using ',tmp.method.display,' approach. This might take a few minutes. Please wait...')))
+                                                             message = paste0('Modelling at ',admin_level_label(tmp.adm, CountryInfo$country()),' using ',tmp.method.display,' approach. This might take a few minutes. Please wait...')))
 
 
             tmp.tracker.list <- res_tracker_list[[tmp.method]][[tmp.adm]]
@@ -1811,11 +1812,11 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
 
               #message('Skip. Already tried modelling at ',tmp.adm,' using ',tmp.method.display,' approach.')
               session$sendCustomMessage('controlSpinner', list(action = "show",
-                                                               message = paste0('Skip. Already tried modelling at ',tmp.adm,' using ',tmp.method.display,' approach.')))
+                                                               message = paste0('Skip. Already tried modelling at ',admin_level_label(tmp.adm, CountryInfo$country()),' using ',tmp.method.display,' approach.')))
               Sys.sleep(0.5)
               session$sendCustomMessage('controlSpinner', list(action = "hide"))
 
-              append_log(paste0("[", tmp.adm, " / ", tmp.method,
+              append_log(paste0("[", admin_level_label(tmp.adm, CountryInfo$country()), " / ", tmp.method,
                                 "] Skipped (already attempted; status: ",
                                 tmp.tracker.list$status, ")."),
                          class = "output")
@@ -1843,7 +1844,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
 
               session$sendCustomMessage('controlSpinner', list(action = "hide"))
 
-              append_log(paste0("[", tmp.adm, " / ", tmp.method,
+              append_log(paste0("[", admin_level_label(tmp.adm, CountryInfo$country()), " / ", tmp.method,
                                 "] Skipped: data sparsity warning -- model not fitted ",
                                 "(use 'Run all selected models' to force-fit)."),
                          class = "warning")
@@ -1859,7 +1860,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
 
               session$sendCustomMessage('controlSpinner', list(action = "hide"))
 
-              append_log(paste0("[", tmp.adm, " / ", tmp.method,
+              append_log(paste0("[", admin_level_label(tmp.adm, CountryInfo$country()), " / ", tmp.method,
                                 "] Skipped: data sparsity error -- model will not be fitted."),
                          class = "error")
 
@@ -1937,7 +1938,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
 
             ### Model log: final status for this cell
             if (identical(tmp.tracker.list$status, "Successful")) {
-              append_log(paste0("[", tmp.adm, " / ", tmp.method,
+              append_log(paste0("[", admin_level_label(tmp.adm, CountryInfo$country()), " / ", tmp.method,
                                 "] Model fitted successfully."),
                          class = "output")
               if (tmp.method == 'Direct' && tmp.adm == 'National' &&
@@ -1947,7 +1948,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
                            class = "output")
               }
             } else {
-              append_log(paste0("[", tmp.adm, " / ", tmp.method,
+              append_log(paste0("[", admin_level_label(tmp.adm, CountryInfo$country()), " / ", tmp.method,
                                 "] ", tmp.tracker.list$status, ": ",
                                 tmp.tracker.list$message),
                          class = "error")
@@ -2029,7 +2030,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
             message('Modelling at ',tmp.adm,' using ',tmp.method,' model.')
 
             session$sendCustomMessage('controlSpinner', list(action = "show",
-                                                             message = paste0('Modelling at ',tmp.adm,' using ',tmp.method.display,' approach. This might take a few minutes. Please wait...')))
+                                                             message = paste0('Modelling at ',admin_level_label(tmp.adm, CountryInfo$country()),' using ',tmp.method.display,' approach. This might take a few minutes. Please wait...')))
 
 
             tmp.tracker.list <- res_tracker_list[[tmp.method]][[tmp.adm]]
@@ -2044,11 +2045,11 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
               }else{
                 #message('Skip. Already tried modelling at ',tmp.adm,' using ',tmp.method.display,' approach.')
                 session$sendCustomMessage('controlSpinner', list(action = "show",
-                                                                 message = paste0('Skip. Already tried modelling at ',tmp.adm,' using ',tmp.method.display,' approach.')))
+                                                                 message = paste0('Skip. Already tried modelling at ',admin_level_label(tmp.adm, CountryInfo$country()),' using ',tmp.method.display,' approach.')))
                 Sys.sleep(0.5)
                 session$sendCustomMessage('controlSpinner', list(action = "hide"))
 
-                append_log(paste0("[", tmp.adm, " / ", tmp.method,
+                append_log(paste0("[", admin_level_label(tmp.adm, CountryInfo$country()), " / ", tmp.method,
                                   "] Skipped (already attempted; status: ",
                                   tmp.tracker.list$status, ")."),
                            class = "output")
@@ -2078,7 +2079,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
 
               session$sendCustomMessage('controlSpinner', list(action = "hide"))
 
-              append_log(paste0("[", tmp.adm, " / ", tmp.method,
+              append_log(paste0("[", admin_level_label(tmp.adm, CountryInfo$country()), " / ", tmp.method,
                                 "] Skipped: data sparsity error -- model will not be fitted."),
                          class = "error")
 
@@ -2090,7 +2091,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
               tmp.tracker.list$status <- 'Warning'
               tmp.tracker.list$message <- 'Model fitted, but interpret with caution due to data sparsity.'
 
-              append_log(paste0("[", tmp.adm, " / ", tmp.method,
+              append_log(paste0("[", admin_level_label(tmp.adm, CountryInfo$country()), " / ", tmp.method,
                                 "] Force-fitting despite sparsity warning. ",
                                 "Interpret results with caution."),
                          class = "warning")
@@ -2167,7 +2168,7 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
 
             ### Model log: final status for this cell
             if (identical(tmp.tracker.list$status, "Successful")) {
-              append_log(paste0("[", tmp.adm, " / ", tmp.method,
+              append_log(paste0("[", admin_level_label(tmp.adm, CountryInfo$country()), " / ", tmp.method,
                                 "] Model fitted successfully."),
                          class = "output")
               if (tmp.method == 'Direct' && tmp.adm == 'National' &&
@@ -2177,11 +2178,11 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
                            class = "output")
               }
             } else if (identical(tmp.tracker.list$status, "Warning")) {
-              append_log(paste0("[", tmp.adm, " / ", tmp.method,
+              append_log(paste0("[", admin_level_label(tmp.adm, CountryInfo$country()), " / ", tmp.method,
                                 "] ", tmp.tracker.list$message),
                          class = "warning")
             } else {
-              append_log(paste0("[", tmp.adm, " / ", tmp.method,
+              append_log(paste0("[", admin_level_label(tmp.adm, CountryInfo$country()), " / ", tmp.method,
                                 "] ", tmp.tracker.list$status, ": ",
                                 tmp.tracker.list$message),
                          class = "error")
@@ -2278,6 +2279,8 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
 
       AnalysisInfo$model_screen_ind_list(screening_progress)
 
+      colnames(selected_res_tracker) <- admin_display_labels(colnames(selected_res_tracker),
+                                                              CountryInfo$country())
       df <- DT::datatable(selected_res_tracker,
                           escape = FALSE, options = list(dom = 't',paging = FALSE, ordering = FALSE))
       return(df)
@@ -2357,6 +2360,8 @@ mod_model_selection_server <-  function(id,CountryInfo,AnalysisInfo,MetaInfo,par
         }
       }
 
+      colnames(selected_res_tracker) <- admin_display_labels(colnames(selected_res_tracker),
+                                                              CountryInfo$country())
       df <- DT::datatable(selected_res_tracker,
                           escape = FALSE, options = list(dom = 't',paging = FALSE, ordering = FALSE))
       return(df)

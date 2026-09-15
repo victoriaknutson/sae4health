@@ -378,7 +378,7 @@ mod_res_visual_prev_map_by_state_server <- function(id, CountryInfo, AnalysisInf
       updateSelectInput(
         session = session,
         inputId = "selected_adm",
-        choices = levs,
+        choices = labeled_admin_choices(levs, CountryInfo$country()),
         selected = selected_adm
       )
     })
