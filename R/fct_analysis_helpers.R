@@ -100,6 +100,52 @@ invalid_direct_admins <- function(res.tab, name.col){
   unique(as.character(res.tab[[name.col]][bad]))
 }
 
+#' @description Wrapper around surveyPrev::clusterInfo() that fixes cluster
+#'   names when a single boundary layer finer than Admin-1 is used.
+#'
+#'   When poly.adm1 and poly.adm2 are the same layer, clusterInfo() reassigns
+#'   clusters that fall outside the boundary (GPS jittering) to the nearest
+#'   area, but it reads that area's name from the hard-coded column NAME_1
+#'   instead of by.adm1. For an Admin-1 layer that is harmless. For a finer
+#'   layer, e.g. Rwanda / Madagascar admin-2, where admin-2 is the survey
+#'   stratification level and is modelled as a single layer, those clusters
+#'   get the PROVINCE name instead of the district name. The district-based
+#'   adjacency matrix doesn't contain that name, so area-level models fail
+#'   with "Exist regions in the data frame but not in Amat.".
+#'
+#'   Fix: pass clusterInfo() a copy of the layer whose NAME_1 column holds the
+#'   by.adm1 names, so the hard-coded lookup returns the right name. The
+#'   admin2 columns of those reassigned clusters are also filled in, since
+#'   clusterInfo() leaves them as NA.
+#'
+#' @param geo,poly.adm1,poly.adm2,by.adm1,by.adm2,... as in
+#'   surveyPrev::clusterInfo()
+#'
+#' @return the clusterInfo() result
+#'
+#' @noRd
+
+cluster_info <- function(geo, poly.adm1, poly.adm2 = NULL,
+                         by.adm1 = "NAME_1", by.adm2 = "NAME_2", ...){
+  single.layer <- is.null(poly.adm2) || identical(poly.adm1, poly.adm2)
+
+  if (single.layer && !identical(by.adm1, "NAME_1") && by.adm1 %in% names(poly.adm1)) {
+    poly <- poly.adm1
+    poly$NAME_1 <- as.character(poly[[by.adm1]])
+    res <- surveyPrev::clusterInfo(geo = geo, poly.adm1 = poly, poly.adm2 = poly,
+                                   by.adm1 = "NAME_1", by.adm2 = "NAME_1", ...)
+  } else {
+    res <- surveyPrev::clusterInfo(geo = geo, poly.adm1 = poly.adm1, poly.adm2 = poly.adm2,
+                                   by.adm1 = by.adm1, by.adm2 = by.adm2, ...)
+  }
+
+  if (single.layer && !is.null(res$data) && "admin1.name" %in% names(res$data)) {
+    res$data$admin2.name <- res$data$admin1.name
+    res$data$admin2.name.full <- paste0(res$data$admin1.name, "_", res$data$admin2.name)
+  }
+  res
+}
+
 call_with_var_fix_off <- function(fun, args, var.fix.off){
   if (isTRUE(var.fix.off)) args$var.fix <- FALSE
   do.call(fun, args)
@@ -144,7 +190,7 @@ cluster_admin_info <- function(cluster.geo,
   if(model.gadm.level==0){
 
     ### cluster.info object
-    cluster.info <- surveyPrev::clusterInfo(geo=cluster.geo,
+    cluster.info <- cluster_info(geo=cluster.geo,
                                             poly.adm1=gadm.list[[paste0('Admin-',1)]],
                                             poly.adm2=gadm.list[[paste0('Admin-',1)]],
                                             by.adm1 = paste0("NAME_",1),
@@ -163,7 +209,7 @@ cluster_admin_info <- function(cluster.geo,
     if(pseudo_level==1){
 
       # cluster.info object
-      cluster.info <- surveyPrev::clusterInfo(geo=cluster.geo, ## same admin for two levels, since no need for information on upper admin region
+      cluster.info <- cluster_info(geo=cluster.geo, ## same admin for two levels, since no need for information on upper admin region
                                               poly.adm1=gadm.list[[paste0('Admin-',model.gadm.level)]],
                                               poly.adm2=gadm.list[[paste0('Admin-',model.gadm.level)]],
                                               by.adm1 = paste0("NAME_",model.gadm.level),
@@ -185,7 +231,7 @@ cluster_admin_info <- function(cluster.geo,
     if(pseudo_level==2){
 
       # cluster.info object
-      cluster.info <- surveyPrev::clusterInfo(geo=cluster.geo,## incorporate both this level and level above for information on upper admin region
+      cluster.info <- cluster_info(geo=cluster.geo,## incorporate both this level and level above for information on upper admin region
                                               poly.adm1=gadm.list[[paste0('Admin-',strat.gadm.level)]],
                                               poly.adm2=gadm.list[[paste0('Admin-',model.gadm.level)]],
                                               by.adm1 = paste0("NAME_",strat.gadm.level),
@@ -488,7 +534,7 @@ fit_svy_model <- function(cluster.geo,
 
     if(method=='Direct'){
       if(process.info){
-        cluster.info <- surveyPrev::clusterInfo(geo=cluster.geo,
+        cluster.info <- cluster_info(geo=cluster.geo,
                                                 poly.adm1=gadm.list[[paste0('Admin-',1)]],
                                                 poly.adm2=gadm.list[[paste0('Admin-',1)]],
                                                 by.adm1 = paste0("NAME_",1),
@@ -558,7 +604,7 @@ fit_svy_model <- function(cluster.geo,
 
     ### define cluster level
     if(process.info){
-      cluster.info <- surveyPrev::clusterInfo(geo=cluster.geo,
+      cluster.info <- cluster_info(geo=cluster.geo,
                                               poly.adm1=gadm.list[[paste0('Admin-',model.gadm.level)]],
                                               poly.adm2=gadm.list[[paste0('Admin-',model.gadm.level)]],
                                               by.adm1 = paste0("NAME_",model.gadm.level),
@@ -596,7 +642,7 @@ fit_svy_model <- function(cluster.geo,
 
     if(process.info){
 
-      cluster.info <- surveyPrev::clusterInfo(geo=cluster.geo,
+      cluster.info <- cluster_info(geo=cluster.geo,
                                               poly.adm1=gadm.list[[paste0('Admin-',model.gadm.level-1)]],
                                               poly.adm2=gadm.list[[paste0('Admin-',model.gadm.level)]],
                                               by.adm1 = paste0("NAME_",model.gadm.level-1),
@@ -604,7 +650,7 @@ fit_svy_model <- function(cluster.geo,
       )
 
       ### when need aggregation to stratification, use the following
-      #cluster.info.tmp <- surveyPrev::clusterInfo(geo=tmp.geo,
+      #cluster.info.tmp <- cluster_info(geo=tmp.geo,
       #                                            poly.adm1=gadm.list[[paste0('Admin-',strata.level)]],
       #                                            poly.adm2=gadm.list[[paste0('Admin-',model.gadm.level)]],
       #                                            by.adm1 = paste0("NAME_",strata.level),
