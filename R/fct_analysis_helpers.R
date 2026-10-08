@@ -41,6 +41,65 @@ mort_var_fix_off <- function(analysis.dat){
 #'
 #' @noRd
 
+#' @description Age-group-to-spatial-component mapping for unit-level
+#'   mortality models.
+#'
+#'   surveyPrev::clusterModel() dispatches mortality data (with an 'age'
+#'   column) to clusterModel_u5mr(), whose default
+#'   age.space.group = c(1,2,2,2,3,3,3,3) assumes the 8 U5MR age bands
+#'   (0, 1-1, 2-5, 6-11, 12-23, 24-35, 36-47, 48-59). IMR data only has the
+#'   first 4 bands, so the default creates an empty third group and the
+#'   fit fails ("$ operator is invalid for atomic vectors"). This returns a
+#'   mapping with one entry per age band actually present, keeping the
+#'   same structure as the default (separate first-month hazard, shared
+#'   hazard for months 1-11, shared hazard for ages 12-59).
+#'
+#' @param analysis.dat analysis dataset for the indicator
+#'
+#' @return integer vector, or NULL if the data is not mortality data
+#'
+#' @noRd
+
+mort_age_space_group <- function(analysis.dat){
+  if (!"age" %in% colnames(analysis.dat)) return(NULL)
+  n.age <- length(unique(stats::na.omit(analysis.dat$age)))
+  default.group <- c(1, 2, 2, 2, 3, 3, 3, 3)
+  if (n.age <= length(default.group)) default.group[seq_len(n.age)] else seq_len(n.age)
+}
+
+#' @description Areas whose direct estimates cannot be used as input to an
+#'   area-level (Fay-Herriot) model.
+#'
+#'   The FH model fits a Gaussian likelihood on the logit scale with the
+#'   direct logit variance as a fixed sampling variance. Besides a missing or
+#'   zero natural-scale variance (the original check), an area is unusable if
+#'   its logit estimate is not finite or is one of surveyPrev's +/-36
+#'   placeholders for estimates of exactly 0 or 1, or its logit variance is
+#'   not finite or effectively zero. Such values reach INLA as an infinite or
+#'   undefined precision and fail with "'from' must be a finite number". This
+#'   happens most often for rare outcomes such as IMR at fine admin levels.
+#'
+#' @param res.tab res.admin1 / res.admin2 table from surveyPrev::directEST
+#'
+#' @param name.col column holding the area names
+#'
+#' @return character vector of unusable area names
+#'
+#' @noRd
+
+invalid_direct_admins <- function(res.tab, name.col){
+  if (is.null(res.tab) || nrow(res.tab) == 0) return(character(0))
+  bad <- !is.finite(res.tab$direct.var) | res.tab$direct.var < 1e-30
+  if ("direct.logit.est" %in% names(res.tab)) {
+    bad <- bad | !is.finite(res.tab$direct.logit.est) | abs(res.tab$direct.logit.est) >= 30
+  }
+  if ("direct.logit.var" %in% names(res.tab)) {
+    bad <- bad | !is.finite(res.tab$direct.logit.var) | res.tab$direct.logit.var < 1e-10
+  }
+  bad[is.na(bad)] <- TRUE
+  unique(as.character(res.tab[[name.col]][bad]))
+}
+
 call_with_var_fix_off <- function(fun, args, var.fix.off){
   if (isTRUE(var.fix.off)) args$var.fix <- FALSE
   do.call(fun, args)
@@ -256,14 +315,14 @@ screen_svy_model <- function(cluster.admin.info,
     ### examine direct estimates
     if(pseudo_level==1){
 
-      bad_admins <- subset(res.direct$res.admin1, direct.var < 1e-30|is.na(direct.var)|direct.var==Inf)$admin1.name
+      bad_admins <- invalid_direct_admins(res.direct$res.admin1, 'admin1.name')
       N.region.invalid.direct.se <- length(bad_admins)+N.region.no.data
     }
 
 
     if(pseudo_level==2){
 
-      bad_admins <- subset(res.direct$res.admin2, direct.var < 1e-30|is.na(direct.var)|direct.var==Inf)$admin2.name.full
+      bad_admins <- invalid_direct_admins(res.direct$res.admin2, 'admin2.name.full')
       N.region.invalid.direct.se <- length(bad_admins)+N.region.no.data
     }
 
@@ -652,7 +711,7 @@ fit_svy_model <- function(cluster.geo,
                                         var.fix.off = mort.fix.off)
 
     if(pseudo_level==1){
-      bad_admins <- subset(res_direct$res.admin1, direct.var < 1e-30|is.na(direct.var)|direct.var==Inf)$admin1.name
+      bad_admins <- invalid_direct_admins(res_direct$res.admin1, 'admin1.name')
 
       ### remove bad clusters
       updated.analysis.dat <- analysis.dat
@@ -689,7 +748,7 @@ fit_svy_model <- function(cluster.geo,
     if(pseudo_level==2){
 
       ### identify bad cluster
-      bad_admins <- subset(res_direct$res.admin2, direct.var < 1e-30|is.na(direct.var)|direct.var==Inf)$admin2.name.full
+      bad_admins <- invalid_direct_admins(res_direct$res.admin2, 'admin2.name.full')
 
       ### remove bad clusters
       updated.analysis.dat <- analysis.dat
@@ -754,16 +813,23 @@ fit_svy_model <- function(cluster.geo,
     }
 
 
-    res_adm <- surveyPrev::clusterModel(data=analysis.dat,
-                                        cluster.info= cluster.info,
-                                        admin.info = admin.info,
-                                        model = "bym2",
-                                        stratification =FALSE,
-                                        admin = pseudo_level,
-                                        aggregation = aggregation,
-                                        CI = 0.95,
-                                        nested=nested,
-                                        X=area_cov_frame)
+    unit.args <- list(data=analysis.dat,
+                      cluster.info= cluster.info,
+                      admin.info = admin.info,
+                      model = "bym2",
+                      stratification =FALSE,
+                      admin = pseudo_level,
+                      aggregation = aggregation,
+                      CI = 0.95,
+                      nested=nested,
+                      X=area_cov_frame)
+
+    ### U5MR / IMR: match age.space.group to the age bands in the data
+    ### (IMR has 4 bands; surveyPrev's default assumes the 8 U5MR bands)
+    age.space.group <- mort_age_space_group(analysis.dat)
+    if(!is.null(age.space.group)) unit.args$age.space.group <- age.space.group
+
+    res_adm <- do.call(surveyPrev::clusterModel, unit.args)
   }
 
 
